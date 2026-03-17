@@ -1,0 +1,15 @@
+{
+  "name": "mychat",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r run build",
+    "build:shared": "pnpm --filter @mychat/shared build",
+    "build:server": "pnpm --filter @mychat/server build",
+    "build:client": "pnpm --filter @mychat/client build",
+    "dev": "pnpm --filter @mychat/test-app dev",
+    "lint": "eslint packages/*/src/**/*.{ts,tsx}"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

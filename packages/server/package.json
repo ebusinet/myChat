@@ -1,0 +1,26 @@
+{
+  "name": "@mychat/server",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" },
+    "./adapters/prisma": { "import": "./dist/storage/prisma.js", "types": "./dist/storage/prisma.d.ts" }
+  },
+  "scripts": { "build": "tsup", "dev": "tsup --watch" },
+  "dependencies": {
+    "@mychat/shared": "workspace:*",
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@google/genai": "^1.0.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "@prisma/client": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@prisma/client": { "optional": true }
+  }
+}
