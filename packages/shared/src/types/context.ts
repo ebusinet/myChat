@@ -5,7 +5,7 @@
  * Each layer carries arbitrary data the AI can reason about.
  */
 
-export type ContextLayerType = 'app' | 'user' | 'session' | 'page' | 'widget';
+export type ContextLayerType = 'app' | 'user' | 'session' | 'pages' | 'page' | 'widget';
 
 export interface ContextLayer {
   type: ContextLayerType;

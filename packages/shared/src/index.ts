@@ -24,6 +24,7 @@ export type {
   ProviderConfig,
   AnthropicProviderConfig,
   OpenAIProviderConfig,
+  OpenAICompatibleProviderConfig,
   GeminiProviderConfig,
   ClaudeAgentProviderConfig,
 } from './types/provider.js';

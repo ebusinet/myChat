@@ -70,8 +70,16 @@ export interface AnthropicProviderConfig {
 export interface OpenAIProviderConfig {
   type: 'openai';
   apiKey: string;
-  baseUrl?: string; // for proxies / compatible endpoints
+  baseUrl?: string;
   model?: string;
+  maxTokens?: number;
+}
+
+export interface OpenAICompatibleProviderConfig {
+  type: 'openai-compatible';
+  apiKey: string;
+  baseUrl: string;
+  model: string;
   maxTokens?: number;
 }
 
@@ -93,5 +101,6 @@ export interface ClaudeAgentProviderConfig {
 export type ProviderConfig =
   | AnthropicProviderConfig
   | OpenAIProviderConfig
+  | OpenAICompatibleProviderConfig
   | GeminiProviderConfig
   | ClaudeAgentProviderConfig;

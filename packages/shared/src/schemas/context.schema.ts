@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const contextLayerTypeSchema = z.enum(['app', 'user', 'session', 'page', 'widget']);
+export const contextLayerTypeSchema = z.enum(['app', 'user', 'session', 'pages', 'page', 'widget']);
 
 export const contextLayerSchema: z.ZodType<{
   type: z.infer<typeof contextLayerTypeSchema>;

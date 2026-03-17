@@ -31,7 +31,7 @@ function renderLayer(
     out.push(`Description: ${layer.description}`);
   }
 
-  if (Object.keys(layer.data).length > 0) {
+  if (layer.data && Object.keys(layer.data).length > 0) {
     out.push(`Data: ${JSON.stringify(layer.data)}`);
   }
 

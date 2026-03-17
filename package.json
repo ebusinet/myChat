@@ -7,6 +7,7 @@
     "build:server": "pnpm --filter @mychat/server build",
     "build:client": "pnpm --filter @mychat/client build",
     "dev": "pnpm --filter @mychat/test-app dev",
+    "test": "pnpm -r run test",
     "lint": "eslint packages/*/src/**/*.{ts,tsx}"
   },
   "engines": {

@@ -2,7 +2,7 @@ import { useEffect, useContext, type ReactNode } from 'react';
 import type { ContextLayer } from '@mychat/shared';
 import { ContextCollectorContext, ParentLayerContext } from './ContextCollector.js';
 
-export interface PageContextProps {
+export interface UserContextProps {
   id: string;
   name: string;
   description?: string;
@@ -11,10 +11,10 @@ export interface PageContextProps {
 }
 
 /**
- * Registers a 'page' context layer in the ContextCollector.
- * Child WidgetContext components will be nested under this page.
+ * Registers a 'user' context layer.
+ * Provides user information (role, preferences, permissions) to the AI.
  */
-export function PageContext({ id, name, description, data, children }: PageContextProps) {
+export function UserContext({ id, name, description, data, children }: UserContextProps) {
   const collector = useContext(ContextCollectorContext);
   const parentId = useContext(ParentLayerContext);
 
@@ -22,7 +22,7 @@ export function PageContext({ id, name, description, data, children }: PageConte
     if (!collector) return;
 
     const layer: ContextLayer = {
-      type: 'page',
+      type: 'user',
       id,
       name,
       description,

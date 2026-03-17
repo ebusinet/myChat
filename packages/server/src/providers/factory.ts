@@ -13,6 +13,14 @@ export function createProvider(config: ProviderConfig): AIProvider {
       return new AnthropicProvider(config);
     case 'openai':
       return new OpenAIProvider(config);
+    case 'openai-compatible':
+      return new OpenAIProvider({
+        type: 'openai',
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        model: config.model,
+        maxTokens: config.maxTokens,
+      });
     case 'gemini':
       return new GeminiProvider(config);
     case 'claude-agent':

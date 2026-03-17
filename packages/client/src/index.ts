@@ -1,5 +1,9 @@
 // Providers
 export { ChatProvider } from './providers/ChatProvider.js';
+export { AppContext } from './providers/AppContext.js';
+export { UserContext } from './providers/UserContext.js';
+export { SessionContext } from './providers/SessionContext.js';
+export { PagesContext } from './providers/PagesContext.js';
 export { PageContext } from './providers/PageContext.js';
 export { WidgetContext } from './providers/WidgetContext.js';
 
@@ -35,6 +39,10 @@ export type {
 // Re-export provider types
 export type { ChatContextValue } from './providers/ChatProvider.js';
 export type { ContextCollectorValue } from './providers/ContextCollector.js';
+export type { AppContextProps } from './providers/AppContext.js';
+export type { UserContextProps } from './providers/UserContext.js';
+export type { SessionContextProps } from './providers/SessionContext.js';
+export type { PagesContextProps } from './providers/PagesContext.js';
 export type { PageContextProps } from './providers/PageContext.js';
 export type { WidgetContextProps } from './providers/WidgetContext.js';
 export type { BranchNavigatorProps } from './components/BranchNavigator.js';

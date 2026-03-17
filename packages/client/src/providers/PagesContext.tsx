@@ -2,7 +2,7 @@ import { useEffect, useContext, type ReactNode } from 'react';
 import type { ContextLayer } from '@mychat/shared';
 import { ContextCollectorContext, ParentLayerContext } from './ContextCollector.js';
 
-export interface PageContextProps {
+export interface PagesContextProps {
   id: string;
   name: string;
   description?: string;
@@ -11,10 +11,10 @@ export interface PageContextProps {
 }
 
 /**
- * Registers a 'page' context layer in the ContextCollector.
- * Child WidgetContext components will be nested under this page.
+ * Registers a 'pages' context layer — a container for multiple PageContext components.
+ * Represents the set of pages currently loaded (tabs, split-view, multi-page layout).
  */
-export function PageContext({ id, name, description, data, children }: PageContextProps) {
+export function PagesContext({ id, name, description, data, children }: PagesContextProps) {
   const collector = useContext(ContextCollectorContext);
   const parentId = useContext(ParentLayerContext);
 
@@ -22,7 +22,7 @@ export function PageContext({ id, name, description, data, children }: PageConte
     if (!collector) return;
 
     const layer: ContextLayer = {
-      type: 'page',
+      type: 'pages',
       id,
       name,
       description,

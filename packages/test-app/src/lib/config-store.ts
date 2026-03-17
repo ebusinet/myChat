@@ -21,20 +21,36 @@ const defaultConfig: RuntimeConfig = {
   ].join('\n'),
 };
 
-let currentConfig: RuntimeConfig = structuredClone(defaultConfig);
+// Use globalThis to survive Next.js dev hot-reloads
+const globalKey = '__mychat_runtime_config__' as const;
+
+function getCurrentConfig(): RuntimeConfig {
+  return (globalThis as any)[globalKey] ?? structuredClone(defaultConfig);
+}
+
+function setCurrentConfig(config: RuntimeConfig): void {
+  (globalThis as any)[globalKey] = config;
+}
+
+// Initialize on first load only
+if (!(globalThis as any)[globalKey]) {
+  setCurrentConfig(structuredClone(defaultConfig));
+}
 
 export function getConfig(): RuntimeConfig {
-  return currentConfig;
+  return getCurrentConfig();
 }
 
 export function updateConfig(partial: Partial<RuntimeConfig>): RuntimeConfig {
-  currentConfig = { ...currentConfig, ...partial };
-  return currentConfig;
+  const updated = { ...getCurrentConfig(), ...partial };
+  setCurrentConfig(updated);
+  return updated;
 }
 
 export function resetConfig(): RuntimeConfig {
-  currentConfig = structuredClone(defaultConfig);
-  return currentConfig;
+  const config = structuredClone(defaultConfig);
+  setCurrentConfig(config);
+  return config;
 }
 
 export function maskApiKey(key: string): string {
@@ -43,7 +59,7 @@ export function maskApiKey(key: string): string {
 }
 
 export function getPublicConfig(): RuntimeConfig & { _masked: true } {
-  const cfg = structuredClone(currentConfig);
+  const cfg = structuredClone(getCurrentConfig());
   if ('apiKey' in cfg.provider && cfg.provider.apiKey) {
     (cfg.provider as any).apiKey = maskApiKey(cfg.provider.apiKey);
   }

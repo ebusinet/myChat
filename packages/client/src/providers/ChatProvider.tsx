@@ -341,9 +341,11 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
               const msg = event.message;
               assistantMessage = msg;
               setAllMessages(prev => {
-                const msgs = (prev.get(sessionId) ?? []).map(m =>
-                  m.id === msg.id ? msg : m,
-                );
+                const existing = prev.get(sessionId) ?? [];
+                const found = existing.some(m => m.id === msg.id);
+                const msgs = found
+                  ? existing.map(m => m.id === msg.id ? msg : m)
+                  : [...existing, msg];
                 return new Map(prev).set(sessionId, msgs);
               });
               setActiveBranchLeafId(msg.id);
@@ -410,9 +412,11 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
               const msg = event.message;
               assistantMessage = msg;
               setAllMessages(prev => {
-                const msgs = (prev.get(sessionId) ?? []).map(m =>
-                  m.id === msg.id ? msg : m,
-                );
+                const existing = prev.get(sessionId) ?? [];
+                const found = existing.some(m => m.id === msg.id);
+                const msgs = found
+                  ? existing.map(m => m.id === msg.id ? msg : m)
+                  : [...existing, msg];
                 return new Map(prev).set(sessionId, msgs);
               });
               setActiveBranchLeafId(msg.id);

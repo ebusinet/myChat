@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-type ProviderType = 'anthropic' | 'openai' | 'gemini';
+type ProviderType = 'anthropic' | 'openai' | 'openai-compatible' | 'gemini';
 
 interface FormState {
   providerType: ProviderType;
@@ -16,7 +16,15 @@ interface FormState {
 const MODEL_DEFAULTS: Record<ProviderType, string> = {
   anthropic: 'claude-sonnet-4-20250514',
   openai: 'gpt-4o',
+  'openai-compatible': '',
   gemini: 'gemini-2.0-flash',
+};
+
+const PROVIDER_LABELS: Record<ProviderType, string> = {
+  anthropic: 'Anthropic (Claude)',
+  openai: 'OpenAI (GPT)',
+  'openai-compatible': 'OpenAI Compatible',
+  gemini: 'Google (Gemini)',
 };
 
 export default function ConfigPage() {
@@ -62,7 +70,7 @@ export default function ConfigPage() {
       if (form.apiKey && !form.apiKey.includes('...')) {
         provider.apiKey = form.apiKey;
       }
-      if (form.providerType === 'openai' && form.baseUrl) {
+      if (form.providerType === 'openai-compatible') {
         provider.baseUrl = form.baseUrl;
       }
 
@@ -170,7 +178,7 @@ export default function ConfigPage() {
           <div className="form-group">
             <label>Provider</label>
             <div className="radio-group">
-              {(['anthropic', 'openai', 'gemini'] as ProviderType[]).map(type => (
+              {(['anthropic', 'openai', 'openai-compatible', 'gemini'] as ProviderType[]).map(type => (
                 <label key={type} className="radio-label">
                   <input
                     type="radio"
@@ -181,12 +189,10 @@ export default function ConfigPage() {
                       ...f,
                       providerType: type,
                       model: MODEL_DEFAULTS[type],
+                      baseUrl: type === 'openai-compatible' ? f.baseUrl : '',
                     }))}
                   />
-                  <span className="radio-text">
-                    {type === 'anthropic' ? 'Anthropic (Claude)' :
-                     type === 'openai' ? 'OpenAI (GPT)' : 'Google (Gemini)'}
-                  </span>
+                  <span className="radio-text">{PROVIDER_LABELS[type]}</span>
                 </label>
               ))}
             </div>
@@ -231,18 +237,19 @@ export default function ConfigPage() {
             />
           </div>
 
-          {form.providerType === 'openai' && (
+          {form.providerType === 'openai-compatible' && (
             <div className="form-group">
-              <label htmlFor="baseUrl">Base URL (proxy)</label>
+              <label htmlFor="baseUrl">Base URL *</label>
               <input
                 id="baseUrl"
                 type="text"
                 value={form.baseUrl}
                 onChange={e => setForm(f => ({ ...f, baseUrl: e.target.value }))}
-                placeholder="https://api.openai.com/v1"
+                placeholder="https://your-api.example.com/v1"
                 className="form-input"
+                required
               />
-              <span className="form-hint">Optional — for OpenAI-compatible endpoints</span>
+              <span className="form-hint">Any OpenAI-compatible endpoint (LiteLLM, Ollama, vLLM, custom proxy...)</span>
             </div>
           )}
         </div>
@@ -302,6 +309,12 @@ export default function ConfigPage() {
                 <span className="config-label">Model</span>
                 <span className="config-value">{savedConfig.provider?.model}</span>
               </div>
+              {savedConfig.provider?.baseUrl && (
+                <div className="config-row">
+                  <span className="config-label">Base URL</span>
+                  <span className="config-value mono">{savedConfig.provider.baseUrl}</span>
+                </div>
+              )}
               <div className="config-row">
                 <span className="config-label">API Key</span>
                 <span className="config-value mono">{savedConfig.provider?.apiKey}</span>
