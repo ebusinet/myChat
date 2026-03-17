@@ -37,8 +37,8 @@ export interface MyChatClientConfig {
   /** Server endpoint URL (e.g., '/api/chat' or 'https://api.example.com/chat') */
   serverUrl: string;
 
-  /** Display mode */
-  mode?: 'bubble' | 'embedded';
+  /** Display mode: 'bubble' (floating button), 'widget' (inline panel), 'embedded' (bare panel) */
+  mode?: 'bubble' | 'widget' | 'embedded';
 
   /** Position for bubble mode */
   bubblePosition?: 'bottom-right' | 'bottom-left';

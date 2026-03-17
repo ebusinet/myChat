@@ -9,6 +9,7 @@ export { WidgetContext } from './providers/WidgetContext.js';
 
 // Components
 export { ChatBubble } from './components/ChatBubble.js';
+export { ChatWidget } from './components/ChatWidget.js';
 export { ChatPanel } from './components/ChatPanel.js';
 export { MessageList } from './components/MessageList.js';
 export { MessageInput } from './components/MessageInput.js';
@@ -45,4 +46,5 @@ export type { SessionContextProps } from './providers/SessionContext.js';
 export type { PagesContextProps } from './providers/PagesContext.js';
 export type { PageContextProps } from './providers/PageContext.js';
 export type { WidgetContextProps } from './providers/WidgetContext.js';
+export type { ChatWidgetProps } from './components/ChatWidget.js';
 export type { BranchNavigatorProps } from './components/BranchNavigator.js';

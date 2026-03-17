@@ -62,7 +62,7 @@ graph LR
     subgraph "Application hôte"
         A[Pages & Widgets] -->|données contextuelles| B[ContextCollector]
         B --> C[ChatProvider]
-        C --> D[ChatBubble / UI]
+        C --> D[ChatBubble / ChatWidget / UI]
     end
 
     subgraph "@mychat/client"
@@ -94,7 +94,7 @@ graph LR
 |-----------|------|-------------|---------------|
 | **ContextCollector** | Registre mutable des couches de contexte (app, user, session, pages, page, widget). Capture un snapshot à la demande | React Context, useRef | `client/src/providers/ContextCollector.tsx` |
 | **ChatProvider** | Gestion d'état du chat : sessions, messages, streaming SSE, navigation de branches | React Context, fetch API | `client/src/providers/ChatProvider.tsx` |
-| **ChatBubble / UI** | Composants visuels : bulle flottante, liste de messages, saisie, navigation de branches | React, CSS | `client/src/components/*.tsx` |
+| **ChatBubble / ChatWidget / UI** | Composants visuels : bulle flottante (`ChatBubble`) ou widget inline (`ChatWidget`), liste de messages, saisie, navigation de branches | React, CSS | `client/src/components/*.tsx` |
 | **API Routes** | Points d'entrée HTTP. Délèguent aux `ChatHandlers` | Framework hôte (Next.js, Express…) | `test-app/src/app/api/chat/` |
 | **ChatHandlers** | Orchestration métier : sauvegarder message, appeler le provider IA, streamer la réponse | TypeScript pur | `server/src/handlers/index.ts` |
 | **Context Builder** | Convertit le `ContextSnapshot` hiérarchique en prompt markdown pour le LLM | TypeScript pur | `server/src/context/builder.ts` |
@@ -130,7 +130,9 @@ graph TD
     PsC --> PC[PageContext]
     PC --> WC[WidgetContext]
     UC --> CB[ChatBubble]
+    UC --> CW[ChatWidget]
     CB --> CPa[ChatPanel]
+    CW --> CPa
     CPa --> ML[MessageList]
     CPa --> MI[MessageInput]
     CPa --> SL[SessionList]
@@ -148,8 +150,9 @@ graph TD
 | `PageContext` | `providers/PageContext.tsx` | Enregistre le contexte d'une page (type `page`) |
 | `WidgetContext` | `providers/WidgetContext.tsx` | Enregistre le contexte d'un widget (type `widget`) |
 | `useChat` | `hooks/useChat.ts` | Hook consommateur du `ChatContext` |
-| `ChatBubble` | `components/ChatBubble.tsx` | Bulle flottante cliquable, ouvre le panel |
-| `ChatPanel` | `components/ChatPanel.tsx` | Layout principal : header + sidebar + zone de messages |
+| `ChatBubble` | `components/ChatBubble.tsx` | Bulle flottante cliquable, ouvre le panel (mode `bubble`) |
+| `ChatWidget` | `components/ChatWidget.tsx` | Widget inline intégré dans le flux de la page (mode `widget`) |
+| `ChatPanel` | `components/ChatPanel.tsx` | Layout principal : header + sidebar + zone de messages (utilisé par ChatBubble et ChatWidget) |
 | `MessageList` | `components/MessageList.tsx` | Affichage des messages, scroll auto, mode édition |
 | `MessageInput` | `components/MessageInput.tsx` | Zone de saisie avec auto-expansion, Enter pour envoyer |
 | `SessionList` | `components/SessionList.tsx` | Liste des conversations dans la sidebar |
@@ -854,6 +857,41 @@ L'IA sait que Marie est une responsable commerciale qui consulte le dashboard Q1
 
 L'IA verra les deux pages et pourra répondre sur le code ET l'aperçu.
 
+#### Mode d'affichage : Bubble vs Widget
+
+myChat propose deux modes d'affichage du chat :
+
+| Mode | Composant | Description |
+|------|-----------|-------------|
+| **Bubble** | `<ChatBubble />` | Bouton flottant en bas de l'écran. Un clic ouvre un panel de chat superposé. Idéal pour un assistant discret. |
+| **Widget** | `<ChatWidget />` | Panel de chat intégré directement dans le flux de la page. Idéal pour un assistant toujours visible. |
+
+```tsx
+import { ChatBubble, ChatWidget } from '@mychat/client';
+
+{/* Mode bubble (défaut) — bouton flottant */}
+<ChatProvider config={{ serverUrl: '/api/chat' }}>
+  {/* ... contexte et contenu ... */}
+  <ChatBubble />
+</ChatProvider>
+
+{/* Mode widget — intégré dans la page */}
+<ChatProvider config={{ serverUrl: '/api/chat' }}>
+  {/* ... contexte et contenu ... */}
+  <ChatWidget width="100%" height="500px" />
+</ChatProvider>
+```
+
+**Props de `ChatWidget`** :
+
+| Prop | Type | Défaut | Description |
+|------|------|--------|-------------|
+| `width` | `string` | `'100%'` | Largeur CSS du widget |
+| `height` | `string` | `'500px'` | Hauteur CSS du widget |
+| `className` | `string` | — | Classe CSS additionnelle |
+
+Les deux modes utilisent le même `ChatPanel` en interne et partagent donc les mêmes fonctionnalités (sessions, messages, branches, streaming).
+
 #### Niveaux optionnels
 
 Chaque niveau est indépendant. Vous pouvez utiliser uniquement ce dont vous avez besoin :
@@ -866,7 +904,7 @@ Chaque niveau est indépendant. Vous pouvez utiliser uniquement ce dont vous ave
       <MyComponent />
     </WidgetContext>
   </PageContext>
-  <ChatBubble />
+  <ChatBubble />  {/* ou <ChatWidget /> */}
 </ChatProvider>
 
 {/* Ou même un widget seul */}
@@ -874,7 +912,7 @@ Chaque niveau est indépendant. Vous pouvez utiliser uniquement ce dont vous ave
   <WidgetContext id="standalone" name="Sidebar" data={{ notifications: 3 }}>
     <Sidebar />
   </WidgetContext>
-  <ChatBubble />
+  <ChatWidget height="400px" />
 </ChatProvider>
 ```
 
@@ -1117,7 +1155,8 @@ graph TD
 | `src/providers/WidgetContext.tsx` | Provider de contexte niveau widget (nœud feuille) |
 | `src/hooks/useChat.ts` | Hook d'accès au ChatContext |
 | `src/hooks/useContextCollector.ts` | Hook d'accès au ContextCollector |
-| `src/components/ChatBubble.tsx` | Bulle flottante cliquable |
+| `src/components/ChatBubble.tsx` | Bulle flottante cliquable (mode bubble) |
+| `src/components/ChatWidget.tsx` | Widget inline intégré dans la page (mode widget) |
 | `src/components/ChatPanel.tsx` | Layout principal du chat |
 | `src/components/MessageList.tsx` | Affichage des messages + édition + branches |
 | `src/components/MessageInput.tsx` | Zone de saisie auto-extensible |
@@ -1137,7 +1176,7 @@ graph TD
 
 | Fichier | Rôle |
 |---------|------|
-| `src/app/page.tsx` | Dashboard de vente avec hiérarchie complète (App → User → Session → Pages → Page → Widget) et ChatBubble |
+| `src/app/page.tsx` | Dashboard de vente avec hiérarchie complète (App → User → Session → Pages → Page → Widget), toggle Bubble/Widget |
 | `src/app/config/page.tsx` | Page de configuration runtime du provider IA |
 | `src/app/api/chat/handlers.ts` | Factory des ChatHandlers avec cache par config |
 | `src/app/api/chat/sessions/route.ts` | Routes GET/POST sessions |
@@ -1303,7 +1342,7 @@ interface MyChatServerConfig {
 ```typescript
 interface MyChatClientConfig {
   serverUrl: string;                        // URL de base de l'API
-  mode?: 'bubble' | 'embedded';             // Mode d'affichage
+  mode?: 'bubble' | 'widget' | 'embedded';   // Mode d'affichage
   bubblePosition?: 'bottom-right' | 'bottom-left';
   getAuthToken?: () => string | Promise<string>;
   labels?: Partial<ChatLabels>;             // Labels i18n
@@ -1374,7 +1413,8 @@ interface ChatLabels {
 | **Factory Pattern** (patron de fabrique) | Pattern de conception utilisé pour instancier le bon provider selon la configuration (`createProvider()`) |
 | **DAG** (graphe orienté acyclique) | Structure de données des messages : chaque message pointe vers son parent via `parentId`, formant un arbre qui permet les branches |
 | **OpenAI-Compatible** | Tout endpoint qui implémente le protocole OpenAI Chat Completions (`/v1/chat/completions`). Permet d'utiliser des proxies comme LiteLLM, Ollama, vLLM |
-| **Bubble** (bulle) | Mode d'affichage par défaut du chat : un bouton flottant en bas de l'écran qui ouvre un panel |
+| **Bubble** (bulle) | Mode d'affichage du chat : un bouton flottant en bas de l'écran qui ouvre un panel superposé |
+| **Widget** (widget inline) | Mode d'affichage alternatif : le chat est intégré directement dans le flux de la page, avec des dimensions configurables |
 
 ---
 
@@ -1402,4 +1442,4 @@ interface ChatLabels {
 
 ---
 
-*Document généré le 18 mars 2026. Version du projet : 0.1.0.*
+*Document mis à jour le 18 mars 2026. Version du projet : 0.1.0.*

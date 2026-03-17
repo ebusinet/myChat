@@ -83,6 +83,14 @@
   }
 }
 
+/* ---- Widget container (inline) ---- */
+
+.mychat-widget-container {
+  border-radius: var(--mychat-radius);
+  box-shadow: var(--mychat-shadow);
+  overflow: hidden;
+}
+
 /* ---- Panel ---- */
 
 .mychat-panel {

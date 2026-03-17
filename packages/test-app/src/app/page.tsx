@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   ChatProvider,
   ChatBubble,
+  ChatWidget,
   AppContext,
   UserContext,
   SessionContext,
@@ -51,8 +52,11 @@ const TOP_CLIENTS = [
 
 type Quarter = keyof typeof REVENUE_DATA;
 
+type ChatMode = 'bubble' | 'widget';
+
 export default function DashboardPage() {
   const [quarter, setQuarter] = useState<Quarter>('Q1-2026');
+  const [chatMode, setChatMode] = useState<ChatMode>('bubble');
   const revenue = REVENUE_DATA[quarter];
   const maxRevenue = Math.max(...revenue.values);
 
@@ -96,6 +100,10 @@ export default function DashboardPage() {
                     <select value={quarter} onChange={e => setQuarter(e.target.value as Quarter)}>
                       <option value="Q1-2026">Q1 2026</option>
                       <option value="Q4-2025">Q4 2025</option>
+                    </select>
+                    <select value={chatMode} onChange={e => setChatMode(e.target.value as ChatMode)}>
+                      <option value="bubble">Chat: Bubble</option>
+                      <option value="widget">Chat: Widget</option>
                     </select>
                   </div>
 
@@ -218,6 +226,13 @@ export default function DashboardPage() {
                         </table>
                       </div>
                     </WidgetContext>
+                    {/* Inline widget mode */}
+                    {chatMode === 'widget' && (
+                      <div className="widget" style={{ gridColumn: 'span 2' }}>
+                        <h2>AI Assistant</h2>
+                        <ChatWidget height="400px" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </PageContext>
@@ -226,8 +241,8 @@ export default function DashboardPage() {
         </UserContext>
       </AppContext>
 
-      {/* Chat bubble — collects all context from the full hierarchy */}
-      <ChatBubble />
+      {/* Chat bubble — only shown in bubble mode */}
+      {chatMode === 'bubble' && <ChatBubble />}
     </ChatProvider>
   );
 }
