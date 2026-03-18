@@ -98,7 +98,7 @@ graph LR
 | Composant | Rôle | Technologies | Fichiers clés |
 |-----------|------|-------------|---------------|
 | **ContextProvider** | Registre mutable des couches de contexte (app, user, session, pages, page, widget). Capture un snapshot complet ou filtré par scope à la demande. Alias public de `ContextCollector` | React Context, useRef | `client/src/providers/ContextCollector.tsx` |
-| **ChatInstance** | Instance de chat indépendante avec son propre état (sessions, messages, streaming). Accepte un `contextScope` pour filtrer les couches visibles et un `initialMessage` pour envoyer une requête automatique au premier rendu | React Context, fetch API | `client/src/providers/ChatProvider.tsx` |
+| **ChatInstance** | Instance de chat indépendante avec son propre état (sessions, messages, streaming). Accepte un `contextScope` pour filtrer les couches visibles et un `initialMessage` pour envoyer une requête automatique au premier rendu (le message utilisateur est masqué, seule la réponse AI s'affiche) | React Context, fetch API | `client/src/providers/ChatProvider.tsx` |
 | **ChatProvider** | Raccourci tout-en-un : `ContextProvider` + `ChatInstance` unique. Utilisé pour les cas simples avec un seul chat par page | React Context | `client/src/providers/ChatProvider.tsx` |
 | **ChatBubble / ChatWidget / UI** | Composants visuels : bulle flottante (`ChatBubble`) ou widget inline (`ChatWidget`), liste de messages, saisie, navigation de branches | React, CSS | `client/src/components/*.tsx` |
 | **API Routes** | Points d'entrée HTTP. Délèguent aux `ChatHandlers` | Framework hôte (Next.js, Express…) | `test-app/src/app/api/chat/` |
@@ -949,7 +949,7 @@ export default function Dashboard() {
 |------|------|--------|-------------|
 | `config` | `MyChatClientConfig` | — | Configuration du chat (requis) |
 | `contextScope` | `ContextScope` | `'all'` | Filtre les couches de contexte visibles par cette instance |
-| `initialMessage` | `string` | — | Message envoyé automatiquement à la création de la première session |
+| `initialMessage` | `string` | — | Message envoyé automatiquement à la création de la première session. Le message utilisateur est masqué dans l'UI : seule la réponse de l'IA est affichée |
 
 **`ContextScope`** — 4 variantes :
 
@@ -1250,7 +1250,7 @@ graph TD
 |---------|------|
 | `src/app/page.tsx` | Dashboard de vente avec hiérarchie complète (App → User → Session → Pages → Page → Widget). Démo multi-chat : widget scopé (Revenue + Pipeline) avec `initialMessage`, et bubble globale |
 | `src/app/config/page.tsx` | Page de configuration runtime du provider IA |
-| `src/app/api/chat/handlers.ts` | Factory des ChatHandlers avec cache par config |
+| `src/app/api/chat/handlers.ts` | Factory des ChatHandlers avec cache `globalThis` (survit au hot-reload Next.js) |
 | `src/app/api/chat/sessions/route.ts` | Routes GET/POST sessions |
 | `src/app/api/chat/sessions/[sessionId]/route.ts` | Route DELETE session |
 | `src/app/api/chat/sessions/[sessionId]/messages/route.ts` | Routes GET messages + POST message (SSE) |
@@ -1467,13 +1467,13 @@ interface ChatLabels {
 | L'erreur s'affiche dans le chat et je veux la masquer | Comportement par défaut (`showErrors: true`) | Passer `showErrors: false` dans `MyChatClientConfig` pour masquer les erreurs |
 | `TypeError: Cannot convert undefined or null to object` | `ContextLayer.data` est `undefined` | S'assurer que `data` est toujours un objet (même vide `{}`) |
 | Le message assistant n'apparaît pas dans l'UI | Le serveur ne renvoie pas `message_done` | Vérifier les logs serveur, le provider peut avoir crashé |
-| La config revient aux valeurs par défaut | Redémarrage du serveur Next.js | Normal : le stockage config est en mémoire. Configurer via `.env.local` pour la persistance |
+| La config revient aux valeurs par défaut | Redémarrage du serveur Next.js | Normal : le stockage config est en mémoire. Configurer via `.env.local` pour la persistance. Le store utilise `globalThis` pour survivre au hot-reload |
 | `Stream request failed: 401` | Token d'authentification invalide | Vérifier le callback `getAuthToken()` |
 | `Stream request failed: 500` | Erreur côté provider IA | Consulter les logs serveur (console) |
 | Les branches ne sont pas visibles | Un seul message par parent | Les flèches ← → n'apparaissent que s'il y a 2+ messages enfants du même parent (après une édition) |
 | Le contexte n'est pas envoyé au LLM | Pas de providers de contexte | Vérifier que les composants `AppContext`/`PageContext`/`WidgetContext` sont enfants du `ChatProvider` |
 | Erreur Prisma au démarrage | `@prisma/client` non installé | `pnpm add @prisma/client` + `npx prisma generate` |
-| Hot-reload casse le chat | Module re-évalué, handlers recréés | Normal en dev. Le factory `getHandlers()` gère la re-création avec cache |
+| Hot-reload casse le chat (ex: "Message not found" à l'édition) | Module re-évalué, `let` module-level réinitialisées | Le factory `getHandlers()` utilise `globalThis` pour persister le `MemoryStorageAdapter` entre hot-reloads |
 
 ---
 
@@ -1486,7 +1486,7 @@ interface ChatLabels {
 | **Context Layer** (couche de contexte) | Nœud dans l'arbre de contexte applicatif. 6 types hiérarchiques : `app` → `user` → `session` → `pages` → `page` → `widget`. Chaque couche a un nom et des données arbitraires |
 | **Context Snapshot** (snapshot de contexte) | Photo instantanée de toutes les couches de contexte au moment de l'envoi d'un message. Envoyé au serveur puis transformé en prompt |
 | **Context Scope** (portée de contexte) | Filtre appliqué par un `ChatInstance` pour limiter les couches visibles. 4 variantes : `'all'`, `{ include: [...] }`, `{ exclude: [...] }`, ou prédicat `(layer) => boolean`. Les ancêtres sont inclus automatiquement pour maintenir la cohérence de l'arbre |
-| **ChatInstance** (instance de chat) | Composant React qui fournit un chat indépendant avec son propre état (sessions, messages, streaming). Accepte un `contextScope` et un `initialMessage` optionnel |
+| **ChatInstance** (instance de chat) | Composant React qui fournit un chat indépendant avec son propre état (sessions, messages, streaming). Accepte un `contextScope` et un `initialMessage` optionnel (le prompt auto-envoyé est masqué dans l'UI) |
 | **ContextProvider** | Alias public de `ContextCollector`. Fournit le registre de contexte sans chat intégré. Utilisé avec `ChatInstance` pour le multi-chat scopé |
 | **Branch** (branche) | Chemin linéaire du premier message (root) jusqu'à un message feuille dans l'arbre. L'édition crée une branche alternative |
 | **Leaf** (feuille) | Message terminal (sans enfants) dans l'arbre de messages. L'UI affiche toujours la branche root → feuille active |
