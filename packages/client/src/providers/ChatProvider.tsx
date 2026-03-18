@@ -13,6 +13,7 @@ import type {
   ChatStreamEvent,
   ContextLayer,
   ContextSnapshot,
+  ContextScope,
   MyChatClientConfig,
   ChatLabels,
 } from '@mychat/shared';
@@ -50,21 +51,46 @@ export interface ChatProviderProps {
   children: ReactNode;
 }
 
+/**
+ * All-in-one provider: creates a ContextCollector + a single ChatInstance.
+ * Use this for simple setups with one chat per page.
+ * For multiple independent chats, use <ContextProvider> + <ChatInstance> instead.
+ */
 export function ChatProvider({ config, children }: ChatProviderProps) {
   return (
     <ContextCollector>
-      <ChatProviderInner config={config}>
+      <ChatInstance config={config}>
         {children}
-      </ChatProviderInner>
+      </ChatInstance>
     </ContextCollector>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Internal provider that consumes the ContextCollector
+// ChatInstance — independent, scoped chat provider
 // ---------------------------------------------------------------------------
 
-function ChatProviderInner({ config, children }: ChatProviderProps) {
+export interface ChatInstanceProps {
+  config: MyChatClientConfig;
+  /** Which context layers this instance sees (default: 'all') */
+  contextScope?: ContextScope;
+  /** Auto-send this message when the first session is created */
+  initialMessage?: string;
+  children: ReactNode;
+}
+
+/**
+ * Independent chat instance that consumes the nearest ContextCollector.
+ * Each ChatInstance has its own sessions, messages, and streaming state.
+ * Use `contextScope` to filter which context layers are visible.
+ * Use `initialMessage` to auto-send a prompt on first session creation.
+ */
+export function ChatInstance({
+  config,
+  contextScope = 'all',
+  initialMessage,
+  children,
+}: ChatInstanceProps) {
   const contextCollector = useContextCollector();
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -74,6 +100,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const initialMessageSentRef = useRef(false);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -155,7 +182,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
 
   // Context layers are read on-demand, not reactively tracked.
   // This avoids infinite re-render loops with useSyncExternalStore.
-  const contextLayers: ContextLayer[] = contextCollector.getSnapshot().layers;
+  const contextLayers: ContextLayer[] = contextCollector.getFilteredSnapshot(contextScope).layers;
 
   // ---- Fetch sessions on mount ----
 
@@ -184,7 +211,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
 
   const createSession = useCallback(async (): Promise<string> => {
     const headers = await getAuthHeaders();
-    const snapshot = contextCollector.getSnapshot();
+    const snapshot = contextCollector.getFilteredSnapshot(contextScope);
     const res = await fetch(apiUrl('/sessions'), {
       method: 'POST',
       headers,
@@ -197,7 +224,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
     setAllMessages(prev => new Map(prev).set(session.id, []));
     setActiveBranchLeafId(null);
     return session.id;
-  }, [apiUrl, getAuthHeaders, contextCollector]);
+  }, [apiUrl, getAuthHeaders, contextCollector, contextScope]);
 
   const switchSession = useCallback(async (sessionId: string) => {
     setActiveSessionId(sessionId);
@@ -301,7 +328,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
       sessionId = await createSession();
     }
 
-    const snapshot: ContextSnapshot = contextCollector.getSnapshot();
+    const snapshot: ContextSnapshot = contextCollector.getFilteredSnapshot(contextScope);
     const parentId = activeBranchLeafId;
 
     setIsStreaming(true);
@@ -373,13 +400,13 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [activeSessionId, isStreaming, activeBranchLeafId, contextCollector, streamResponse, apiUrl, createSession]);
+  }, [activeSessionId, isStreaming, activeBranchLeafId, contextCollector, contextScope, streamResponse, apiUrl, createSession]);
 
   const editMessage = useCallback(async (messageId: string, newContent: string) => {
     if (!activeSessionId || isStreaming) return;
 
     const sessionId = activeSessionId;
-    const snapshot: ContextSnapshot = contextCollector.getSnapshot();
+    const snapshot: ContextSnapshot = contextCollector.getFilteredSnapshot(contextScope);
 
     setIsStreaming(true);
     setError(null);
@@ -450,7 +477,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [activeSessionId, isStreaming, contextCollector, streamResponse, apiUrl]);
+  }, [activeSessionId, isStreaming, contextCollector, contextScope, streamResponse, apiUrl]);
 
   // ---- Branch navigation ----
 
@@ -484,6 +511,16 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
 
     setActiveBranchLeafId(currentId);
   }, [sessionMessages]);
+
+  // ---- Auto-send initial message ----
+
+  useEffect(() => {
+    if (initialMessage && !initialMessageSentRef.current) {
+      initialMessageSentRef.current = true;
+      void sendMessage(initialMessage);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once on mount
+  }, []);
 
   // ---- Context value ----
 

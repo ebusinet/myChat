@@ -3,6 +3,7 @@ export type {
   ContextLayer,
   ContextLayerType,
   ContextSnapshot,
+  ContextScope,
 } from './types/context.js';
 
 export type {

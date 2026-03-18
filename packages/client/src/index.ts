@@ -1,5 +1,6 @@
 // Providers
-export { ChatProvider } from './providers/ChatProvider.js';
+export { ChatProvider, ChatInstance } from './providers/ChatProvider.js';
+export { ContextProvider } from './providers/ContextCollector.js';
 export { AppContext } from './providers/AppContext.js';
 export { UserContext } from './providers/UserContext.js';
 export { SessionContext } from './providers/SessionContext.js';
@@ -33,12 +34,13 @@ export type {
   ContextLayer,
   ContextLayerType,
   ContextSnapshot,
+  ContextScope,
   MyChatClientConfig,
   ChatLabels,
 } from '@mychat/shared';
 
 // Re-export provider types
-export type { ChatContextValue } from './providers/ChatProvider.js';
+export type { ChatContextValue, ChatInstanceProps } from './providers/ChatProvider.js';
 export type { ContextCollectorValue } from './providers/ContextCollector.js';
 export type { AppContextProps } from './providers/AppContext.js';
 export type { UserContextProps } from './providers/UserContext.js';

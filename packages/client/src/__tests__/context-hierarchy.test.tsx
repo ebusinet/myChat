@@ -9,7 +9,7 @@ import { PagesContext } from '../providers/PagesContext.js';
 import { PageContext } from '../providers/PageContext.js';
 import { WidgetContext } from '../providers/WidgetContext.js';
 import type { ContextCollectorValue } from '../providers/ContextCollector.js';
-import type { ContextSnapshot } from '@mychat/shared';
+import type { ContextSnapshot, ContextScope } from '@mychat/shared';
 
 // Helper to capture the collector value from inside the tree
 function SnapshotCapture({ onCapture }: { onCapture: (snap: ContextSnapshot) => void }) {
@@ -436,5 +436,133 @@ describe('Description field', () => {
     expect(app.description).toBe('Main application');
     expect(app.children![0]!.description).toBe('Dashboard page');
     expect(app.children![0]!.children![0]!.description).toBe('Revenue widget');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getFilteredSnapshot tests
+// ---------------------------------------------------------------------------
+
+// Helper to capture the collector ref for direct getFilteredSnapshot calls
+function CollectorCapture({ onCollector }: { onCollector: (c: ContextCollectorValue) => void }) {
+  const collector = useContext(ContextCollectorContext);
+  const captured = useRef(false);
+  useEffect(() => {
+    if (collector && !captured.current) {
+      captured.current = true;
+      onCollector(collector);
+    }
+  }, [collector, onCollector]);
+  return null;
+}
+
+describe('getFilteredSnapshot', () => {
+  // Full tree: App → User → Session → Pages → Page → [chart, table]
+  function renderFullTree(onCollector: (c: ContextCollectorValue) => void) {
+    return render(
+      <ContextCollector>
+        <AppContext id="app" name="App" data={{}}>
+          <UserContext id="user" name="User" data={{}}>
+            <SessionContext id="sess" name="Session" data={{}}>
+              <PagesContext id="pages" name="Pages" data={{}}>
+                <PageContext id="dashboard" name="Dashboard" data={{}}>
+                  <WidgetContext id="chart" name="Chart" data={{ total: 100 }}>
+                    <div />
+                  </WidgetContext>
+                  <WidgetContext id="table" name="Table" data={{ count: 5 }}>
+                    <div />
+                  </WidgetContext>
+                </PageContext>
+              </PagesContext>
+            </SessionContext>
+          </UserContext>
+        </AppContext>
+        <CollectorCapture onCollector={onCollector} />
+      </ContextCollector>,
+    );
+  }
+
+  it('scope "all" returns the full tree', async () => {
+    let collector: ContextCollectorValue | null = null;
+    renderFullTree(c => { collector = c; });
+    await act(() => new Promise(r => setTimeout(r, 10)));
+
+    const snap = collector!.getFilteredSnapshot('all');
+    expect(snap.layers).toHaveLength(1);
+    expect(snap.layers[0]!.id).toBe('app');
+    // Should be the same as getSnapshot
+    const full = collector!.getSnapshot();
+    expect(snap.layers[0]!.id).toBe(full.layers[0]!.id);
+  });
+
+  it('include scope keeps only selected layers + ancestors', async () => {
+    let collector: ContextCollectorValue | null = null;
+    renderFullTree(c => { collector = c; });
+    await act(() => new Promise(r => setTimeout(r, 10)));
+
+    const snap = collector!.getFilteredSnapshot({ include: ['chart'] });
+    // Should have the full ancestor chain: app → user → sess → pages → dashboard → chart
+    expect(snap.layers).toHaveLength(1);
+    const app = snap.layers[0]!;
+    expect(app.id).toBe('app');
+
+    const user = app.children![0]!;
+    expect(user.id).toBe('user');
+
+    const sess = user.children![0]!;
+    expect(sess.id).toBe('sess');
+
+    const pages = sess.children![0]!;
+    expect(pages.id).toBe('pages');
+
+    const dashboard = pages.children![0]!;
+    expect(dashboard.id).toBe('dashboard');
+
+    // Only chart, not table
+    expect(dashboard.children).toHaveLength(1);
+    expect(dashboard.children![0]!.id).toBe('chart');
+  });
+
+  it('include scope with multiple IDs keeps both + shared ancestors', async () => {
+    let collector: ContextCollectorValue | null = null;
+    renderFullTree(c => { collector = c; });
+    await act(() => new Promise(r => setTimeout(r, 10)));
+
+    const snap = collector!.getFilteredSnapshot({ include: ['chart', 'table'] });
+    const dashboard = snap.layers[0]!.children![0]!.children![0]!.children![0]!.children![0]!;
+    expect(dashboard.children).toHaveLength(2);
+    expect(dashboard.children![0]!.id).toBe('chart');
+    expect(dashboard.children![1]!.id).toBe('table');
+  });
+
+  it('exclude scope removes specified layers', async () => {
+    let collector: ContextCollectorValue | null = null;
+    renderFullTree(c => { collector = c; });
+    await act(() => new Promise(r => setTimeout(r, 10)));
+
+    const snap = collector!.getFilteredSnapshot({ exclude: ['table'] });
+    const dashboard = snap.layers[0]!.children![0]!.children![0]!.children![0]!.children![0]!;
+    expect(dashboard.children).toHaveLength(1);
+    expect(dashboard.children![0]!.id).toBe('chart');
+  });
+
+  it('function scope filters by predicate + includes ancestors', async () => {
+    let collector: ContextCollectorValue | null = null;
+    renderFullTree(c => { collector = c; });
+    await act(() => new Promise(r => setTimeout(r, 10)));
+
+    const snap = collector!.getFilteredSnapshot(layer => layer.type === 'widget');
+    // Both widgets should be present with their ancestor chain
+    const dashboard = snap.layers[0]!.children![0]!.children![0]!.children![0]!.children![0]!;
+    expect(dashboard.children).toHaveLength(2);
+  });
+
+  it('include scope with non-existent ID returns only ancestors of existing matches', async () => {
+    let collector: ContextCollectorValue | null = null;
+    renderFullTree(c => { collector = c; });
+    await act(() => new Promise(r => setTimeout(r, 10)));
+
+    const snap = collector!.getFilteredSnapshot({ include: ['nonexistent'] });
+    expect(snap.layers).toHaveLength(0);
   });
 });

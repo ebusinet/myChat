@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import {
-  ChatProvider,
+  ContextProvider,
+  ChatInstance,
   ChatBubble,
   ChatWidget,
   AppContext,
@@ -58,7 +59,7 @@ export default function DashboardPage() {
   const maxRevenue = Math.max(...revenue.values);
 
   return (
-    <ChatProvider config={chatConfig}>
+    <ContextProvider>
       <AppContext
         id="mychat-test-app"
         name="myChat Test App"
@@ -219,11 +220,18 @@ export default function DashboardPage() {
                         </table>
                       </div>
                     </WidgetContext>
-                    {/* Inline chat widget — always visible alongside the bubble */}
-                    <div className="widget" style={{ gridColumn: 'span 2' }}>
-                      <h2>AI Assistant</h2>
-                      <ChatWidget height="400px" />
-                    </div>
+
+                    {/* Scoped chat widget — only sees Revenue & Pipeline widgets */}
+                    <ChatInstance
+                      config={chatConfig}
+                      contextScope={{ include: ['revenue-chart', 'sales-pipeline'] }}
+                      initialMessage="Provide a brief summary of the revenue and pipeline data."
+                    >
+                      <div className="widget" style={{ gridColumn: 'span 2' }}>
+                        <h2>AI Assistant (Revenue &amp; Pipeline)</h2>
+                        <ChatWidget height="400px" />
+                      </div>
+                    </ChatInstance>
                   </div>
                 </div>
               </PageContext>
@@ -232,8 +240,10 @@ export default function DashboardPage() {
         </UserContext>
       </AppContext>
 
-      {/* Chat bubble — floating button, works alongside the widget */}
-      <ChatBubble />
-    </ChatProvider>
+      {/* Chat bubble — floating, sees all context layers */}
+      <ChatInstance config={chatConfig} contextScope="all">
+        <ChatBubble />
+      </ChatInstance>
+    </ContextProvider>
   );
 }

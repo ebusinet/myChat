@@ -60,18 +60,23 @@ Actif — version 0.1.0, première implémentation complète avec support multi-
 ```mermaid
 graph LR
     subgraph "Application hôte"
-        A[Pages & Widgets] -->|données contextuelles| B[ContextCollector]
-        B --> C[ChatProvider]
-        C --> D[ChatBubble / ChatWidget / UI]
+        A[Pages & Widgets] -->|données contextuelles| B[ContextProvider]
+        B --> CI1[ChatInstance scope=all]
+        B --> CI2[ChatInstance scope=scoped]
+        CI1 --> D1[ChatBubble]
+        CI2 --> D2[ChatWidget]
     end
 
     subgraph "@mychat/client"
         B
-        C
-        D
+        CI1
+        CI2
+        D1
+        D2
     end
 
-    C -->|HTTP + SSE| E[API Routes]
+    CI1 -->|HTTP + SSE| E[API Routes]
+    CI2 -->|HTTP + SSE| E
 
     subgraph "@mychat/server"
         E --> F[ChatHandlers]
@@ -86,14 +91,15 @@ graph LR
 
     I -->|API| K[Anthropic / OpenAI / Gemini]
 
-    J -.->|importé par| C
+    J -.->|importé par| CI1
     J -.->|importé par| F
 ```
 
 | Composant | Rôle | Technologies | Fichiers clés |
 |-----------|------|-------------|---------------|
-| **ContextCollector** | Registre mutable des couches de contexte (app, user, session, pages, page, widget). Capture un snapshot à la demande | React Context, useRef | `client/src/providers/ContextCollector.tsx` |
-| **ChatProvider** | Gestion d'état du chat : sessions, messages, streaming SSE, navigation de branches | React Context, fetch API | `client/src/providers/ChatProvider.tsx` |
+| **ContextProvider** | Registre mutable des couches de contexte (app, user, session, pages, page, widget). Capture un snapshot complet ou filtré par scope à la demande. Alias public de `ContextCollector` | React Context, useRef | `client/src/providers/ContextCollector.tsx` |
+| **ChatInstance** | Instance de chat indépendante avec son propre état (sessions, messages, streaming). Accepte un `contextScope` pour filtrer les couches visibles et un `initialMessage` pour envoyer une requête automatique au premier rendu | React Context, fetch API | `client/src/providers/ChatProvider.tsx` |
+| **ChatProvider** | Raccourci tout-en-un : `ContextProvider` + `ChatInstance` unique. Utilisé pour les cas simples avec un seul chat par page | React Context | `client/src/providers/ChatProvider.tsx` |
 | **ChatBubble / ChatWidget / UI** | Composants visuels : bulle flottante (`ChatBubble`) ou widget inline (`ChatWidget`), liste de messages, saisie, navigation de branches | React, CSS | `client/src/components/*.tsx` |
 | **API Routes** | Points d'entrée HTTP. Délèguent aux `ChatHandlers` | Framework hôte (Next.js, Express…) | `test-app/src/app/api/chat/` |
 | **ChatHandlers** | Orchestration métier : sauvegarder message, appeler le provider IA, streamer la réponse | TypeScript pur | `server/src/handlers/index.ts` |
@@ -892,6 +898,70 @@ import { ChatBubble, ChatWidget } from '@mychat/client';
 
 Les deux modes utilisent le même `ChatPanel` en interne et partagent donc les mêmes fonctionnalités (sessions, messages, branches, streaming).
 
+#### Instances de chat scopées (multi-chat)
+
+Pour afficher **plusieurs chats indépendants** sur la même page avec des périmètres de contexte différents, utilisez `<ContextProvider>` + `<ChatInstance>` :
+
+```tsx
+import {
+  ContextProvider, ChatInstance,
+  ChatBubble, ChatWidget,
+  AppContext, PageContext, WidgetContext,
+} from '@mychat/client';
+
+const config = { serverUrl: '/api/chat' };
+
+export default function Dashboard() {
+  return (
+    <ContextProvider>
+      <AppContext id="app" name="App" data={{}}>
+        <PageContext id="dashboard" name="Dashboard" data={{}}>
+          <WidgetContext id="revenue" name="Revenue" data={{ total: 397000 }}>
+            <RevenueChart />
+          </WidgetContext>
+          <WidgetContext id="pipeline" name="Pipeline" data={{ deals: 93 }}>
+            <PipelineView />
+          </WidgetContext>
+
+          {/* Chat scopé : ne voit que les widgets Revenue et Pipeline */}
+          <ChatInstance
+            config={config}
+            contextScope={{ include: ['revenue', 'pipeline'] }}
+            initialMessage="Provide a summary of revenue and pipeline data."
+          >
+            <ChatWidget height="400px" />
+          </ChatInstance>
+        </PageContext>
+      </AppContext>
+
+      {/* Chat global : voit toute la hiérarchie de contexte */}
+      <ChatInstance config={config} contextScope="all">
+        <ChatBubble />
+      </ChatInstance>
+    </ContextProvider>
+  );
+}
+```
+
+**Props de `ChatInstance`** :
+
+| Prop | Type | Défaut | Description |
+|------|------|--------|-------------|
+| `config` | `MyChatClientConfig` | — | Configuration du chat (requis) |
+| `contextScope` | `ContextScope` | `'all'` | Filtre les couches de contexte visibles par cette instance |
+| `initialMessage` | `string` | — | Message envoyé automatiquement à la création de la première session |
+
+**`ContextScope`** — 4 variantes :
+
+| Variante | Exemple | Comportement |
+|----------|---------|-------------|
+| `'all'` | `contextScope="all"` | Voit tout (défaut) |
+| `{ include: [...] }` | `contextScope={{ include: ['revenue', 'pipeline'] }}` | Voit uniquement les couches listées + leurs ancêtres (pour la cohérence de l'arbre) |
+| `{ exclude: [...] }` | `contextScope={{ exclude: ['top-clients'] }}` | Voit tout sauf les couches listées |
+| `(layer) => boolean` | `contextScope={l => l.type === 'widget'}` | Prédicat personnalisé, avec résolution automatique des ancêtres |
+
+> **Note** : `ChatProvider` reste disponible comme raccourci tout-en-un pour les cas simples (un seul chat par page). C'est équivalent à `<ContextProvider><ChatInstance contextScope="all">...</ChatInstance></ContextProvider>`.
+
 #### Niveaux optionnels
 
 Chaque niveau est indépendant. Vous pouvez utiliser uniquement ce dont vous avez besoin :
@@ -937,14 +1007,16 @@ data={{ chartType: 'bar', color: '#6366f1' }}
 #### Résumé visuel du flux
 
 ```
-ChatProvider
+ContextProvider
   └─ AppContext id="app" data={version, env}
        └─ UserContext id="user" data={role, locale}
             └─ SessionContext id="session" data={theme}
                  └─ PagesContext id="pages" data={activePage, layout}
                       └─ PageContext id="dashboard" data={quarter}
                            ├─ WidgetContext id="revenue"  data={total, trend}
-                           └─ WidgetContext id="clients"  data={clients[]}
+                           ├─ WidgetContext id="clients"  data={clients[]}
+                           └─ ChatInstance scope={include:["revenue"]}  ← voit seulement revenue + ancêtres
+  └─ ChatInstance scope="all"  ← voit tout
 
          ↓ au moment de l'envoi d'un message ↓
 
@@ -1106,7 +1178,7 @@ graph TD
 | Fichier | Rôle |
 |---------|------|
 | `src/types/chat.ts` | Types `ChatMessage`, `ChatSession`, `ChatBranch`, `MessageRole`, `ChatStreamEvent`, paramètres d'API |
-| `src/types/context.ts` | Types `ContextLayer`, `ContextLayerType`, `ContextSnapshot` |
+| `src/types/context.ts` | Types `ContextLayer`, `ContextLayerType`, `ContextSnapshot`, `ContextScope` |
 | `src/types/provider.ts` | Interface `AIProvider`, configs de chaque provider, interface `AgentCapableProvider` |
 | `src/types/storage.ts` | Interface `StorageAdapter` |
 | `src/types/config.ts` | `MyChatServerConfig`, `MyChatClientConfig`, `ChatLabels`, `defaultLabels` |
@@ -1145,8 +1217,8 @@ graph TD
 
 | Fichier | Rôle |
 |---------|------|
-| `src/providers/ChatProvider.tsx` | **Fichier central.** État du chat, sessions, messages, streaming SSE, branches |
-| `src/providers/ContextCollector.tsx` | Registre mutable des couches de contexte. Expose `ParentLayerContext` pour la hiérarchie |
+| `src/providers/ChatProvider.tsx` | **Fichier central.** Exporte `ChatProvider` (tout-en-un) et `ChatInstance` (indépendant, scopé). État du chat, sessions, messages, streaming SSE, branches |
+| `src/providers/ContextCollector.tsx` | Registre mutable des couches de contexte. Expose `ParentLayerContext` pour la hiérarchie, `ContextProvider` (alias public), et `getFilteredSnapshot(scope)` pour le filtrage par scope |
 | `src/providers/AppContext.tsx` | Provider de contexte niveau application |
 | `src/providers/UserContext.tsx` | Provider de contexte niveau utilisateur |
 | `src/providers/SessionContext.tsx` | Provider de contexte niveau session |
@@ -1163,7 +1235,7 @@ graph TD
 | `src/components/SessionList.tsx` | Liste des conversations |
 | `src/components/BranchNavigator.tsx` | Navigation ← 2/3 → entre branches |
 | `src/styles/chat.css` | Styles autonomes avec variables CSS |
-| `src/__tests__/context-hierarchy.test.tsx` | Tests de la hiérarchie de contexte (14 tests) |
+| `src/__tests__/context-hierarchy.test.tsx` | Tests de la hiérarchie de contexte et du filtrage par scope (20 tests) |
 | `vitest.config.ts` | Configuration Vitest avec jsdom |
 
 **Point d'entrée lecture** : commencer par `src/providers/ChatProvider.tsx` — c'est le cœur du client. Pour le système de contexte, commencer par `ContextCollector.tsx` puis les providers dans l'ordre hiérarchique.
@@ -1176,7 +1248,7 @@ graph TD
 
 | Fichier | Rôle |
 |---------|------|
-| `src/app/page.tsx` | Dashboard de vente avec hiérarchie complète (App → User → Session → Pages → Page → Widget), toggle Bubble/Widget |
+| `src/app/page.tsx` | Dashboard de vente avec hiérarchie complète (App → User → Session → Pages → Page → Widget). Démo multi-chat : widget scopé (Revenue + Pipeline) avec `initialMessage`, et bubble globale |
 | `src/app/config/page.tsx` | Page de configuration runtime du provider IA |
 | `src/app/api/chat/handlers.ts` | Factory des ChatHandlers avec cache par config |
 | `src/app/api/chat/sessions/route.ts` | Routes GET/POST sessions |
@@ -1184,7 +1256,7 @@ graph TD
 | `src/app/api/chat/sessions/[sessionId]/messages/route.ts` | Routes GET messages + POST message (SSE) |
 | `src/app/api/chat/sessions/[sessionId]/messages/edit/route.ts` | Route POST édition (SSE) |
 | `src/app/api/config/route.ts` | Routes GET/PUT/DELETE config runtime |
-| `src/lib/config-store.ts` | Store de config via globalThis |
+| `src/lib/config-store.ts` | Store de config avec persistance 3 couches (globalThis → fichier JSON → valeurs par défaut) |
 
 **Point d'entrée lecture** : commencer par `src/app/page.tsx` pour voir comment le chat est intégré dans une page.
 
@@ -1322,6 +1394,12 @@ interface ContextLayer {
   data: Record<string, unknown>;
   children?: ContextLayer[];
 }
+
+type ContextScope =
+  | 'all'                                    // Toutes les couches (défaut)
+  | { include: string[] }                    // Seulement ces IDs + ancêtres
+  | { exclude: string[] }                    // Tout sauf ces IDs
+  | ((layer: ContextLayer) => boolean);      // Prédicat + résolution ancêtres
 ```
 
 ### Configuration serveur (`MyChatServerConfig`)
@@ -1407,6 +1485,9 @@ interface ChatLabels {
 | **Handler** | Fonction d'orchestration métier côté serveur. Gère le flux complet : sauvegarder le message utilisateur → appeler le provider → sauvegarder la réponse |
 | **Context Layer** (couche de contexte) | Nœud dans l'arbre de contexte applicatif. 6 types hiérarchiques : `app` → `user` → `session` → `pages` → `page` → `widget`. Chaque couche a un nom et des données arbitraires |
 | **Context Snapshot** (snapshot de contexte) | Photo instantanée de toutes les couches de contexte au moment de l'envoi d'un message. Envoyé au serveur puis transformé en prompt |
+| **Context Scope** (portée de contexte) | Filtre appliqué par un `ChatInstance` pour limiter les couches visibles. 4 variantes : `'all'`, `{ include: [...] }`, `{ exclude: [...] }`, ou prédicat `(layer) => boolean`. Les ancêtres sont inclus automatiquement pour maintenir la cohérence de l'arbre |
+| **ChatInstance** (instance de chat) | Composant React qui fournit un chat indépendant avec son propre état (sessions, messages, streaming). Accepte un `contextScope` et un `initialMessage` optionnel |
+| **ContextProvider** | Alias public de `ContextCollector`. Fournit le registre de contexte sans chat intégré. Utilisé avec `ChatInstance` pour le multi-chat scopé |
 | **Branch** (branche) | Chemin linéaire du premier message (root) jusqu'à un message feuille dans l'arbre. L'édition crée une branche alternative |
 | **Leaf** (feuille) | Message terminal (sans enfants) dans l'arbre de messages. L'UI affiche toujours la branche root → feuille active |
 | **SSE** (Server-Sent Events) | Protocole de streaming unidirectionnel serveur → client. Utilisé pour envoyer les fragments de réponse en temps réel |

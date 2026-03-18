@@ -24,3 +24,16 @@ export interface ContextSnapshot {
   collectedAt: string; // ISO timestamp
   layers: ContextLayer[];
 }
+
+/**
+ * Defines which context layers a ChatInstance should include in its snapshots.
+ * - 'all': include everything (default)
+ * - { include: string[] }: only these layer IDs (+ their ancestors for tree coherence)
+ * - { exclude: string[] }: everything except these layer IDs
+ * - function: custom predicate applied to each layer
+ */
+export type ContextScope =
+  | 'all'
+  | { include: string[] }
+  | { exclude: string[] }
+  | ((layer: ContextLayer) => boolean);

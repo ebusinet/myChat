@@ -3,6 +3,6 @@ import { ContextCollectorContext } from '../providers/ContextCollector.js';
 
 export function useContextCollector() {
   const ctx = useContext(ContextCollectorContext);
-  if (!ctx) throw new Error('useContextCollector must be used within ChatProvider');
+  if (!ctx) throw new Error('useContextCollector must be used within ChatProvider or ContextProvider');
   return ctx;
 }

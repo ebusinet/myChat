@@ -1,10 +1,11 @@
 import { createContext, useCallback, useMemo, useRef, type ReactNode } from 'react';
-import type { ContextLayer, ContextSnapshot } from '@mychat/shared';
+import type { ContextLayer, ContextSnapshot, ContextScope } from '@mychat/shared';
 
 export interface ContextCollectorValue {
   registerLayer(layer: ContextLayer, parentId?: string): void;
   unregisterLayer(id: string): void;
   getSnapshot(): ContextSnapshot;
+  getFilteredSnapshot(scope: ContextScope): ContextSnapshot;
 }
 
 export const ContextCollectorContext = createContext<ContextCollectorValue | null>(null);
@@ -69,11 +70,71 @@ export function ContextCollector({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const getFilteredSnapshot = useCallback((scope: ContextScope): ContextSnapshot => {
+    const snapshot = getSnapshot();
+    if (scope === 'all') return snapshot;
+
+    // Flatten the tree and build a parent map
+    const flatLayers: ContextLayer[] = [];
+    const treeParentMap = new Map<string, string>();
+
+    function flatten(layers: ContextLayer[], parentId?: string) {
+      for (const layer of layers) {
+        flatLayers.push(layer);
+        if (parentId) treeParentMap.set(layer.id, parentId);
+        if (layer.children) flatten(layer.children, layer.id);
+      }
+    }
+    flatten(snapshot.layers);
+
+    // Determine which IDs to keep
+    let keepIds: Set<string>;
+
+    if (typeof scope === 'function') {
+      keepIds = new Set(flatLayers.filter(scope).map(l => l.id));
+    } else if ('include' in scope) {
+      keepIds = new Set(scope.include.filter(id => flatLayers.some(l => l.id === id)));
+    } else {
+      const excludeSet = new Set(scope.exclude);
+      keepIds = new Set(flatLayers.filter(l => !excludeSet.has(l.id)).map(l => l.id));
+    }
+
+    // Add ancestors for include/function scopes (tree coherence)
+    if (typeof scope === 'function' || (typeof scope === 'object' && 'include' in scope)) {
+      const ancestorIds = new Set<string>();
+      for (const id of keepIds) {
+        let current = id;
+        while (treeParentMap.has(current)) {
+          const parent = treeParentMap.get(current)!;
+          ancestorIds.add(parent);
+          current = parent;
+        }
+      }
+      for (const id of ancestorIds) keepIds.add(id);
+    }
+
+    // Rebuild filtered tree
+    function filterTree(layers: ContextLayer[]): ContextLayer[] {
+      return layers
+        .filter(l => keepIds.has(l.id))
+        .map(l => ({
+          ...l,
+          children: l.children ? filterTree(l.children) : [],
+        }));
+    }
+
+    return {
+      collectedAt: snapshot.collectedAt,
+      layers: filterTree(snapshot.layers),
+    };
+  }, [getSnapshot]);
+
   const value = useMemo<ContextCollectorValue>(() => ({
     registerLayer,
     unregisterLayer,
     getSnapshot,
-  }), [registerLayer, unregisterLayer, getSnapshot]);
+    getFilteredSnapshot,
+  }), [registerLayer, unregisterLayer, getSnapshot, getFilteredSnapshot]);
 
   return (
     <ContextCollectorContext.Provider value={value}>
@@ -81,3 +142,10 @@ export function ContextCollector({ children }: { children: ReactNode }) {
     </ContextCollectorContext.Provider>
   );
 }
+
+/**
+ * Public alias for ContextCollector.
+ * Use when you need a standalone context registry without a built-in chat.
+ * Pair with one or more <ChatInstance> components.
+ */
+export const ContextProvider = ContextCollector;
