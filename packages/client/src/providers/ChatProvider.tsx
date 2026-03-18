@@ -101,6 +101,8 @@ export function ChatInstance({
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const initialMessageSentRef = useRef(false);
+  const sendingInitialRef = useRef(false);
+  const [hiddenMessageIds] = useState(() => new Set<string>());
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -176,8 +178,9 @@ export function ChatInstance({
   );
 
   const messages = useMemo(
-    () => buildBranch(sessionMessages, activeBranchLeafId),
-    [buildBranch, sessionMessages, activeBranchLeafId],
+    () => buildBranch(sessionMessages, activeBranchLeafId)
+      .filter(m => !hiddenMessageIds.has(m.id)),
+    [buildBranch, sessionMessages, activeBranchLeafId, hiddenMessageIds],
   );
 
   // Context layers are read on-demand, not reactively tracked.
@@ -344,6 +347,9 @@ export function ChatInstance({
           switch (event.type) {
             case 'message_created': {
               const msg = event.message;
+              if (msg.role === 'user' && sendingInitialRef.current) {
+                hiddenMessageIds.add(msg.id);
+              }
               setAllMessages(prev => {
                 const msgs = [...(prev.get(sessionId) ?? []), msg];
                 return new Map(prev).set(sessionId, msgs);
@@ -382,11 +388,13 @@ export function ChatInstance({
                 return new Map(prev).set(sessionId, msgs);
               });
               setActiveBranchLeafId(msg.id);
+              sendingInitialRef.current = false;
               break;
             }
             case 'error': {
               console.error('[myChat] Stream error:', event.error);
               setError(event.error);
+              sendingInitialRef.current = false;
               break;
             }
           }
@@ -396,11 +404,12 @@ export function ChatInstance({
       const message = err instanceof Error ? err.message : 'An unexpected error occurred';
       console.error('[myChat] Stream error:', message);
       setError(message);
+      sendingInitialRef.current = false;
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [activeSessionId, isStreaming, activeBranchLeafId, contextCollector, contextScope, streamResponse, apiUrl, createSession]);
+  }, [activeSessionId, isStreaming, activeBranchLeafId, contextCollector, contextScope, streamResponse, apiUrl, createSession, hiddenMessageIds]);
 
   const editMessage = useCallback(async (messageId: string, newContent: string) => {
     if (!activeSessionId || isStreaming) return;
@@ -517,6 +526,7 @@ export function ChatInstance({
   useEffect(() => {
     if (initialMessage && !initialMessageSentRef.current) {
       initialMessageSentRef.current = true;
+      sendingInitialRef.current = true;
       void sendMessage(initialMessage);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once on mount
