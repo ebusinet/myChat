@@ -25,6 +25,7 @@ export interface ChatContextValue {
   activeSession: ChatSession | null;
   messages: ChatMessage[]; // current branch only (linear)
   isStreaming: boolean;
+  error: string | null;
 
   createSession(): Promise<string>;
   switchSession(sessionId: string): Promise<void>;
@@ -35,6 +36,7 @@ export interface ChatContextValue {
 
   getBranchOptions(messageId: string): Promise<ChatMessage[]>;
   switchBranch(messageId: string): Promise<void>;
+  clearError(): void;
 
   contextLayers: ContextLayer[];
   labels: ChatLabels;
@@ -70,7 +72,10 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
   const [allMessages, setAllMessages] = useState<Map<string, ChatMessage[]>>(new Map());
   const [activeBranchLeafId, setActiveBranchLeafId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const clearError = useCallback(() => setError(null), []);
 
   const labels = useMemo<ChatLabels>(() => ({
     ...defaultLabels,
@@ -300,6 +305,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
     const parentId = activeBranchLeafId;
 
     setIsStreaming(true);
+    setError(null);
     let assistantContent = '';
     let assistantMessage: ChatMessage | null = null;
 
@@ -353,11 +359,16 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
             }
             case 'error': {
               console.error('[myChat] Stream error:', event.error);
+              setError(event.error);
               break;
             }
           }
         },
       );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+      console.error('[myChat] Stream error:', message);
+      setError(message);
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
@@ -371,6 +382,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
     const snapshot: ContextSnapshot = contextCollector.getSnapshot();
 
     setIsStreaming(true);
+    setError(null);
     let assistantContent = '';
     let assistantMessage: ChatMessage | null = null;
 
@@ -424,11 +436,16 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
             }
             case 'error': {
               console.error('[myChat] Edit stream error:', event.error);
+              setError(event.error);
               break;
             }
           }
         },
       );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+      console.error('[myChat] Edit stream error:', message);
+      setError(message);
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
@@ -475,6 +492,7 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
     activeSession,
     messages,
     isStreaming,
+    error,
     createSession,
     switchSession,
     deleteSession,
@@ -482,14 +500,15 @@ function ChatProviderInner({ config, children }: ChatProviderProps) {
     editMessage,
     getBranchOptions,
     switchBranch,
+    clearError,
     contextLayers,
     labels,
     config,
   }), [
-    sessions, activeSession, messages, isStreaming,
+    sessions, activeSession, messages, isStreaming, error,
     createSession, switchSession, deleteSession,
     sendMessage, editMessage,
-    getBranchOptions, switchBranch,
+    getBranchOptions, switchBranch, clearError,
     contextLayers, labels, config,
   ]);
 

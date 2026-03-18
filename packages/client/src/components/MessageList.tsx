@@ -4,7 +4,8 @@ import { useChat } from '../hooks/useChat.js';
 import { BranchNavigator } from './BranchNavigator.js';
 
 export function MessageList() {
-  const { messages, isStreaming, getBranchOptions, switchBranch, editMessage, labels } = useChat();
+  const { messages, isStreaming, error, clearError, getBranchOptions, switchBranch, editMessage, labels, config } = useChat();
+  const showErrors = config.showErrors !== false;
   const bottomRef = useRef<HTMLDivElement>(null);
   const [branchMap, setBranchMap] = useState<Map<string, ChatMessage[]>>(new Map());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -122,7 +123,16 @@ export function MessageList() {
         );
       })}
 
-      {messages.length === 0 && !isStreaming && (
+      {showErrors && error && (
+        <div className="mychat-error">
+          <span className="mychat-error-text">{error}</span>
+          <button className="mychat-error-dismiss" onClick={clearError} aria-label="Dismiss error">
+            &times;
+          </button>
+        </div>
+      )}
+
+      {messages.length === 0 && !isStreaming && !error && (
         <div className="mychat-empty-state">
           Start a conversation by typing a message below.
         </div>

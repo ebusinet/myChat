@@ -1344,6 +1344,7 @@ interface MyChatClientConfig {
   serverUrl: string;                        // URL de base de l'API
   mode?: 'bubble' | 'widget' | 'embedded';   // Mode d'affichage
   bubblePosition?: 'bottom-right' | 'bottom-left';
+  showErrors?: boolean;                     // Afficher les erreurs dans le chat (défaut: true)
   getAuthToken?: () => string | Promise<string>;
   labels?: Partial<ChatLabels>;             // Labels i18n
 }
@@ -1384,7 +1385,8 @@ interface ChatLabels {
 |----------|---------------|----------|
 | `Cannot find module '@mychat/shared'` | Packages non compilés | `pnpm build` |
 | `Cannot find module './625.js'` | Cache webpack corrompu | Supprimer `packages/test-app/.next/` et relancer |
-| Le chat ne répond pas (pas de streaming) | Clé API manquante ou invalide | Vérifier via `/config` → Test Connection |
+| Le chat ne répond pas (pas de streaming) | Clé API manquante ou invalide | Vérifier via `/config` → Test Connection. L'erreur s'affiche dans le chat par défaut |
+| L'erreur s'affiche dans le chat et je veux la masquer | Comportement par défaut (`showErrors: true`) | Passer `showErrors: false` dans `MyChatClientConfig` pour masquer les erreurs |
 | `TypeError: Cannot convert undefined or null to object` | `ContextLayer.data` est `undefined` | S'assurer que `data` est toujours un objet (même vide `{}`) |
 | Le message assistant n'apparaît pas dans l'UI | Le serveur ne renvoie pas `message_done` | Vérifier les logs serveur, le provider peut avoir crashé |
 | La config revient aux valeurs par défaut | Redémarrage du serveur Next.js | Normal : le stockage config est en mémoire. Configurer via `.env.local` pour la persistance |

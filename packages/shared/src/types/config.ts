@@ -46,6 +46,9 @@ export interface MyChatClientConfig {
   /** Auth token or function that returns one (delegated from host app) */
   getAuthToken?: () => string | Promise<string>;
 
+  /** Show error messages in the chat UI (default: true) */
+  showErrors?: boolean;
+
   /** Custom labels / i18n */
   labels?: Partial<ChatLabels>;
 }
